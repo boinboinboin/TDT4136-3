@@ -6,7 +6,13 @@ import copy
 from itertools import product as prod
 
 
+
+
 class CSP:
+
+    backtrack_counter = 0
+    backtrack_failure_counter = 0   
+
     def __init__(self):
         # self.variables is a list of the variable names in the CSP
         self.variables = []
@@ -169,7 +175,20 @@ class CSP:
         iterations of the loop.
         """
         # TODO: YOUR CODE HERE
-        pass
+        backtrack_counter += 1
+        var = self.select_unassigned_variable(assignment)
+        for value in assignment[var]:
+            new_assignment = copy.deepcopy(assignment)
+            assignment[var] = value
+            inferences = self.inference(assignment, var, value)
+            if inferences != False:
+
+                result = self.backtrack()
+                if result != False:
+                    return result
+
+        backtrack_failure_counter += 1
+        return False
 
     def select_unassigned_variable(self, assignment):
         """The function 'Select-Unassigned-Variable' from the pseudocode
@@ -178,7 +197,10 @@ class CSP:
         of legal values has a length greater than one.
         """
         # TODO: YOUR CODE HERE
-        pass
+        for key in assignment:
+            if len(assignment[key]) > 1:
+                return key
+        return False
 
     def inference(self, assignment, queue):
         """The function 'AC-3' from the pseudocode in the textbook.
@@ -187,6 +209,16 @@ class CSP:
         is the initial queue of arcs that should be visited.
         """
         # TODO: YOUR CODE HERE
+        
+        while (len(queue) != 0):
+            i, j = queue.pop()
+            if (self.revise(assignment, i, j) == True):
+                if (len(self.domains[i]) == 0):
+                    return False
+                for k in self.get_all_neighboring_arcs(i):
+                    queue.append(k)
+        return True
+
         pass
 
     def revise(self, assignment, i, j):
@@ -199,6 +231,19 @@ class CSP:
         legal values in 'assignment'.
         """
         # TODO: YOUR CODE HERE
+        revised = False
+        for x in self.domains[i]:
+            satisfied = False
+            for y in self.domains[j]:
+                for constraint in self.constraints[i][j]:
+                    if constraint:
+                        satisfied = True
+            if satisfied == False:
+                self.domains[i].remove(x)
+                revised = True
+                    
+        return revised
+    
         pass
 
 
