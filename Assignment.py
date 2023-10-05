@@ -4,14 +4,13 @@
 
 import copy
 from itertools import product as prod
+from tkinter import *
 
 
 
 
 class CSP:
-
-    backtrack_counter = 0
-    backtrack_failure_counter = 0   
+ 
 
     def __init__(self):
         # self.variables is a list of the variable names in the CSP
@@ -23,6 +22,10 @@ class CSP:
         # self.constraints[i][j] is a list of legal value pairs for
         # the variable pair (i, j)
         self.constraints = {}
+
+        self.backtrack_counter = 0
+
+        self.backtrack_failure_counter = 0
 
     def add_variable(self, name: str, domain: list):
         """Add a new variable to the CSP.
@@ -147,6 +150,9 @@ class CSP:
         # values that are not arc-consistent to begin with
         self.inference(assignment, self.get_all_arcs())
 
+        self.backtrack_counter = 1
+        self.backtrack_failure_counter = 0
+
         # Call backtrack with the partial assignment 'assignment'
         return self.backtrack(assignment)
 
@@ -175,20 +181,23 @@ class CSP:
         iterations of the loop.
         """
         # TODO: YOUR CODE HERE
-        backtrack_counter += 1
+        if sum(len(domain) for domain in assignment.values()) == len(assignment):
+            return assignment
+
         var = self.select_unassigned_variable(assignment)
         for value in assignment[var]:
             new_assignment = copy.deepcopy(assignment)
-            assignment[var] = value
-            inferences = self.inference(assignment, var, value)
-            if inferences != False:
-
-                result = self.backtrack()
-                if result != False:
+            new_assignment[var] = value
+            if self.inference(new_assignment, self.get_all_arcs()):
+				# Found inference calling backtrack recursively
+                self.backtrack_counter += 1
+                result = self.backtrack(new_assignment)
+                if result:
                     return result
 
-        backtrack_failure_counter += 1
-        return False
+		# Backtracking failed
+        self.backtrack_failure_counter += 1
+        return
 
     def select_unassigned_variable(self, assignment):
         """The function 'Select-Unassigned-Variable' from the pseudocode
@@ -197,10 +206,19 @@ class CSP:
         of legal values has a length greater than one.
         """
         # TODO: YOUR CODE HERE
-        for key in assignment:
-            if len(assignment[key]) > 1:
-                return key
-        return False
+        # for n in assignment:
+        #     # print(n)
+        #     if len(assignment[n]) > 1:
+        #         # print(assignment[n])
+        #         return n
+        # return False
+
+        return min(assignment.keys(), 
+                   key=lambda var: float("inf") 
+                   if len(assignment[var]) < 2 
+                   else len(assignment[var]))
+    
+    
 
     def inference(self, assignment, queue):
         """The function 'AC-3' from the pseudocode in the textbook.
@@ -210,16 +228,15 @@ class CSP:
         """
         # TODO: YOUR CODE HERE
         
-        while (len(queue) != 0):
+        while len(queue) != 0:
             i, j = queue.pop()
             if (self.revise(assignment, i, j) == True):
-                if (len(self.domains[i]) == 0):
+                if not assignment[i]:
                     return False
-                for k in self.get_all_neighboring_arcs(i):
-                    queue.append(k)
+                for k, _ in self.get_all_neighboring_arcs(i):
+                    if k != j:
+                        queue.append((k,i))
         return True
-
-        pass
 
     def revise(self, assignment, i, j):
         """The function 'Revise' from the pseudocode in the textbook.
@@ -232,20 +249,15 @@ class CSP:
         """
         # TODO: YOUR CODE HERE
         revised = False
-        for x in self.domains[i]:
-            satisfied = False
-            for y in self.domains[j]:
-                for constraint in self.constraints[i][j]:
-                    if constraint:
-                        satisfied = True
-            if satisfied == False:
-                self.domains[i].remove(x)
+        for x in assignment[i]:
+            arcs = list(self.get_all_possible_pairs([x], assignment[j]))
+            if not sum(arc in self.constraints[i][j] for arc in arcs):
                 revised = True
+                # print(assignment[i], x)
+                if x in assignment[i] and len(assignment[i]) > 1:
+                    assignment[i].remove(x)
                     
         return revised
-    
-        pass
-
 
 def create_map_coloring_csp():
     """Instantiate a CSP representing the map coloring problem from the
@@ -321,3 +333,74 @@ def print_sudoku_solution(solution):
         print("")
         if row == 2 or row == 5:
             print('------+-------+------')
+
+
+def draw_board(solution, backtrack_counter, backtrack_failure_counter, boardname=""):
+	"""
+	Method for drawing sudoku board with solution from CSP-backtracking with kTinker
+	"""
+	rec_size = 35
+	width = 9 * rec_size + 3
+	height = 9 * rec_size + 3
+
+	drawer = Tk()
+	drawer.winfo_toplevel().title("Solved {}".format(boardname))
+	window = Canvas(drawer, width=width, height=height)
+
+	def exit_tkinter():
+		drawer.destroy()
+
+	def stop_solving():
+		global solving
+		solving = False
+		drawer.destroy()
+
+	for row in range(9):
+		for col in range(9):
+			x = row + 0.1
+			y = col + 0.1
+
+			# Drawing thicker lines on certain rows and columns
+			col_space = 1 if col == 3 or col == 6 else 0
+			row_space = 1 if row == 3 or row == 6 else 0
+
+			window.create_rectangle(y * rec_size + col_space, x * rec_size + row_space, y * rec_size + rec_size,
+									x * rec_size + rec_size,
+									fill="white")
+
+			window.create_text(y * rec_size + 0.5 * rec_size, x * rec_size + 0.5 * rec_size,
+							   fill="black", font="Times 20 italic bold", text=(solution['{}-{}'.format(row, col)][0]))
+
+	next_button = Button(drawer, text="Solve next board",
+						 width=30, command=exit_tkinter, height=2)
+	stop_button = Button(drawer, text="Stop solving",
+						 width=30, command=stop_solving, height=2)
+
+	label1 = Label(drawer, text="Number of backtracks: {}".format(backtrack_counter))
+	label2 = Label(drawer, text="Number of failed backtracks: {}".format(backtrack_failure_counter))
+
+	window.pack()
+	label1.pack()
+	label2.pack()
+	next_button.pack()
+	stop_button.pack()
+
+	drawer.mainloop()
+
+def main():
+	board_paths = [("Easy", "easy.txt"),
+				 ("Medium", "medium.txt"),
+				 ("Hard", "hard.txt"),
+				 ("Very hard", "veryhard.txt")]
+	for filepath in board_paths:
+		if solving:
+			print(">  Solving {}".format(filepath[0]), end="\n\n")
+			csp = create_sudoku_csp(filepath[1])
+			solution = csp.backtracking_search()
+			draw_board(solution, csp.backtrack_counter, csp.backtrack_failure_counter, filepath[0])
+
+	if not solving:
+		print("Stopped solving")
+
+solving = True
+main()
